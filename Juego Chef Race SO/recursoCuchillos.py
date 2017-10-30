@@ -9,7 +9,3 @@ class Cuchillos(Sprite):
         self.image = pygame.image.load("imagenes/cuchillos.png")
         self.rect = self.image.get_rect()
         self.rect.move_ip(cont_size[0] - 120, cont_size[1] - 685)
-
-    def update():
-        #animacion sprite
-        0

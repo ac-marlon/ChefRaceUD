@@ -9,7 +9,3 @@ class Receta(Sprite):
         self.image = pygame.image.load("imagenes/receta.png")
         self.rect = self.image.get_rect()
         self.rect.move_ip(cont_size[0]-800, cont_size[1] - 695)
-
-    def update():
-        #animacion sprite
-        0

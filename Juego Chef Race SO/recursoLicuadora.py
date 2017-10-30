@@ -10,7 +10,3 @@ class Licuadora(Sprite):
         self.image = pygame.image.load("imagenes/licuadora.png")
         self.rect = self.image.get_rect()
         self.rect.move_ip(cont_size[0] - 90, cont_size[1] - 575)
-
-    def update():
-        #animacion sprite
-        0

@@ -9,7 +9,3 @@ class Horno(Sprite):
         self.image = pygame.image.load("imagenes/horno.png")
         self.rect = self.image.get_rect()
         self.rect.move_ip(cont_size[0] - 130, cont_size[1] - 430)
-
-    def update():
-        #animacion sprite
-        0
