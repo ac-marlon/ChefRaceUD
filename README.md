@@ -19,6 +19,4 @@ __Controles (temporal):__
 
 >Para elegir, la distribución de las teclas es la siguiente:
 
->Las teclas Q, A, Z representan los tres diferentes tipos de recetas que pueden ser asignadas a la pizarra del primer chef,
-
->similarmente, las teclas W, S, X y E, D, S representan las recetas que pueden ser asignadas al segundo y tercer chef respectivamente.
+>Las teclas Q, A, Z representan los tres diferentes tipos de recetas que pueden ser asignadas a la pizarra del primer chef, similarmente, las teclas W, S, X y E, D, S representan las recetas que pueden ser asignadas al segundo y tercer chef respectivamente.
