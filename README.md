@@ -1,11 +1,13 @@
 # Chef Race UD (Universidad Distrital)
 ## Videojuego para la implementación del algoritmo de planificación RoundRobin
+## Videojuego para la implementación del algoritmo de planificación SRTF
 
 **Lista de objetivos:**
 
 1. Desarrollo del juego mediante python3 y la librería pygame
 2. Estudio y desarrollo de un algoritmo de planificación (RoundRobin)
-3. Implementación de ambos para el aprendizaje lúdico del tema
+3. Estudio y desarrollo de un algoritmo de planificación (SRTF)
+4. Implementación de ambos para el aprendizaje lúdico del tema (Sistemas Operativos)
 
 **Integrantes:**
 
@@ -13,8 +15,10 @@
 - David Amado Romero (20121020064)
 
 __Controles (temporal):__
->Cada chef puede elegir uno o mas recursos.
+>A cada chef se le pueden asignar una o mas recetas de cualquier tipo.
 
->Para elegir, basta tener en cuenta que cada uno de los 3 botones del mouse representan a uno de los chefs:
+>Para elegir, la distribución de las teclas es la siguiente:
 
->El click izquierdo al primero, la rueda del centro al segundo y el click derecho al tercero.
+>Las teclas Q, A, Z representan los tres diferentes tipos de recetas que pueden ser asignadas a la pizarra del primer chef,
+
+>similarmente, las teclas W, S, X y E, D, S representan las recetas que pueden ser asignadas al segundo y tercer chef respectivamente.
