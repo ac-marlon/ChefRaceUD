@@ -1,6 +1,6 @@
 import cola
 import time
-import procesos as ps
+from procesos import *
 import recursos as rs
 import queue
 import threading
@@ -8,388 +8,462 @@ import numpy as np
 import pygame
 from pygame.sprite import Sprite
 from pygame.locals import *
+from pygame.mouse import *
 import util
 import sys, pygame, util
 from receta import Receta
-from recursos import CuchillosIma
-from recursos import LicuadoraIma
-from recursos import HornoIma
+from recursos import *
 from pizarra import Pizarra
-from procesos import PolloConPapasIma
-from procesos import MalteadaIma
-from procesos import EnsaladaIma
-import time
 
 size = width, height = 900, 712
 screen = pygame.display.set_mode(size)
+mutex = threading.Lock()
 
 class Procesador(threading.Thread):
-    def __init__(self,idProcesador,*args):
-        threading.Thread.__init__(self)
-        self.idProcesador=idProcesador 
-        self.proceso=None
-        self.lis=cola.Cola()
-        self.ter=cola.Cola()
-        self.blo=cola.Cola()
-        self.sus=cola.Cola()
-        self._args=args
-        self.uso=True
-        self.ttotal=0
-        
-    def __str__(self):
-        return str(self.idProcesador)
-        
-    def run(self):
-        while self.uso:
-            self.usarProcesador(*self._args)
-            
-    def usarProcesador(self,q):
-        while not self.proceso==None or not q.empty() or not self.lis.es_vacia() or not self.sus.es_vacia() or not self.blo.es_vacia():
-            time.sleep(1)
-            
-            if not q.empty():
-                nuevo=q.get()
-                self.asignar(nuevo)
-                self.ttotal+=nuevo.t
-            if not self.lis.es_vacia() and self.proceso==None:
-                posible=self.lis.desencolar()
-                if posible.recurso.libre:
-                    self.ocupado=True
-                    self.proceso=posible
-                    self.proceso.recurso.libre=False
-                    print("\ncomenzando proceso",self.proceso,"en el procesador",self)
-                else:
-                    print("\nel proceso",posible,"requiere de un recurso ocupado, encolando en bloqueado")
-                    self.blo.encolar(posible)
-            
-            self.contarColaBlo()
-            self.contarColaLis()            
-            self.revisarColaSus()
-            self.revisarColaBlo()
-            
-            if not self.proceso==None:
-                self.proceso.procesar()
-                self.ttotal-=1
-                if self.proceso.t>0 and self.proceso.quantum==0:
-                    self.proceso.tr=5
-                    self.proceso.recurso.libre=True
-                    self.sus.encolar(self.proceso)
-                    print("\nse reencolo el proceso",self.proceso,"a suspendidos")
-                    self.proceso=None
-                elif self.proceso.t==0:
-                    self.proceso.recurso.libre=True                    
-                    print("\nterminando proceso",self.proceso,"en el procesador",self,",sus",self.proceso.sus,",lis",self.proceso.lis,",blo",self.proceso.blo,",zona critica",self.proceso.zc)
-                    self.ter.encolar(self.proceso)
-                    self.proceso=None
-                    q.task_done()
-        print("termino el procesador",self,"lista de tareas completadas en este procesador:")
-        for i in range(self.ter.tam):
-            print(self.ter.desencolar())
-        self.uso=False
-        
-    def revisarColaSus(self):
-        tam = self.sus.tam
-        for i in range(tam):
-            n=self.sus.desencolar()
-            n.tr-=1
-            n.sus+=1
-            if n.tr==0:
-                self.asignar(n)
-                print("\nse saco el proceso",n,"de la cola de suspendidos y entro a la cola de listo")
-            else:
-                self.sus.encolar(n)
-                
-    def revisarColaBlo(self):
-        for i in range(self.blo.tam):
-            posible=self.blo.desencolar()
-            print(posible,posible.recurso,posible.recurso.libre)
-            if posible.recurso.libre:
-                self.asignar(posible)
-                print("\nse saco el proceso",posible," de la cola de bloqueados y entro en la cola de listos")
-            else:
-                self.blo.encolar(posible)
+	def __init__(self,idProcesador,*args):
+		threading.Thread.__init__(self)
+		self.idProcesador=idProcesador
+		self.proceso=None
+		self.lis=cola.Cola()
+		self.ter=cola.Cola()
+		self.blo=cola.Cola()
+		self.sus=cola.Cola()
+		self._args=args
+		self.uso=True
+		self.ttotal=0
+		self.minIter=50
 
-    def contarColaLis(self):
-        tam = self.lis.tam
+	def __str__(self):
+		return str(self.idProcesador)
 
-        for i in range(tam):
-            n=self.lis.desencolar()
-            n.lis+=1
-            self.lis.encolar(n)
-            
+	def run(self):
+		while self.uso:
+			self.usarProcesador(*self._args)
 
-    def contarColaBlo(self):
-        tam = self.blo.tam
-        for i in range(self.blo.tam):
-            n=self.blo.desencolar()
-            n.blo+=1
-            self.blo.encolar(n)
-    
-    def asignar(self,proceso):
-        proceso.quantum=proceso.asignarQ(self.ttotal)
-        self.lis.encolar(proceso)
+	def usarProcesador(self,q):
+		while not self.proceso==None or not q.empty() or not self.lis.es_vacia() or not self.sus.es_vacia() or not self.blo.es_vacia() or self.minIter>0:
+			time.sleep(2.5) #tiempo para cada accion en el procesador
+			self.minIter-=1
+			if not q.empty():
+				nuevo=q.get()
+				self.asignar(nuevo)
+				self.ttotal+=nuevo.t
+			if not self.lis.es_vacia() and self.proceso==None:
+				posible=self.lis.desencolar()
+				if posible.recurso.libre:
+					self.ocupado=True
+					self.proceso=posible
+					self.proceso.recurso.libre=False
+					self.proceso.estado=3
+#					print("\ncomenzando proceso",self.proceso,"en el procesador",self)
+				else:
+#					print("\nel proceso",posible,"requiere de un recurso ocupado, encolando en bloqueado")
+					self.blo.encolar(posible)
+					posible.estado=1
 
-class cliente:
-    def __init__(self):
-        self.numPo=0
-        self.numMa=0
-        self.numEn=0
-        
-        self.recursos=[rs.Horno(),rs.Cuchillos(),rs.Licuadora()]
-        
-        self.cola1=queue.Queue()
-        self.cola1.put(ps.Malteada(0,self.recursos[2]))
-        self.numMa+=1
+			self.contarColaBlo()
+			self.contarColaLis()
+			self.revisarColaSus()
+			self.revisarColaBlo()
 
-        self.cola2=queue.Queue()
-        self.cola2.put(ps.PolloConPapas(0,self.recursos[0]))
-        self.numPo+=1
+			if not self.proceso==None:
+				self.proceso.procesar()
+				print("procesador",self,"con",self.proceso)
+				self.ttotal-=1
+				if self.proceso.t>0 and self.proceso.quantum==0:
+					self.proceso.tr=5
+					self.proceso.recurso.libre=True
+					self.sus.encolar(self.proceso)
+					self.proceso.estado=2
+#					print("\nse reencolo el proceso",self.proceso,"a suspendidos")
+					self.proceso=None
+				elif self.proceso.t==0:
+					self.proceso.recurso.libre=True
+#					print("\nterminando proceso",self.proceso,"en el procesador",self,",sus",self.proceso.sus,",lis",self.proceso.lis,",blo",self.proceso.blo,",zona critica",self.proceso.zc)
+					self.ter.encolar(self.proceso)
+					self.proceso.estado=4
+					self.proceso=None
+					q.task_done()
+		print("termino el procesador",self,"lista de tareas completadas en este procesador:")
+		for i in range(self.ter.tam):
+			print(self.ter.desencolar())
+		self.uso=False
 
-        self.cola3=queue.Queue()
-        self.cola3.put(ps.Ensalada(0,self.recursos[1])) 
-        self.numEn+=1
 
-        self.colaProcesadores=queue.Queue()
-        
-        self.procesador1=Procesador(1,self.cola1)        
-        self.procesador2=Procesador(2,self.cola2)      
-        self.procesador3=Procesador(3,self.cola3)
+	def revisarColaSus(self):
+		tam = self.sus.tam
+		for i in range(tam):
+			n=self.sus.desencolar()
+			n.tr-=1
+			n.sus+=1
+			if n.tr==0:
+				self.asignar(n)
+#				print("\nse saco el proceso",n,"de la cola de suspendidos y entro a la cola de listo")
+			else:
+				self.sus.encolar(n)
 
-    def iniciar(self):        
-        self.procesador1.start()
-        self.procesador2.start()
-        self.procesador3.start()
-        
-        for i in range(15):
-            s=np.random.randint(3)
-            if s == 0:
-                self.cola1.put(self.crear_pedido_aleatorio())
-            elif s == 1:
-                self.cola2.put(self.crear_pedido_aleatorio())
-            else: 
-                self.cola3.put(self.crear_pedido_aleatorio())
-        
-        self.cola1.join()
-        self.cola2.join()
-        self.cola3.join()
+	def revisarColaBlo(self):
+		for i in range(self.blo.tam):
+			posible=self.blo.desencolar()
+			if posible.recurso.libre:
+				self.asignar(posible)
+#				print("\nse saco el proceso",posible," de la cola de bloqueados y entro en la cola de listos")
+			else:
+				self.blo.encolar(posible)
 
-    def crear_pedido_aleatorio(self):
-        aleatorio=np.random.randint(3)
-        print("Aleatorio es:", aleatorio)
-        aux=aleatorio+1
-        print("Recursos: " + "1 = Licuadora" + "2 = Cuchillos" + "3 = Horno")
-        if aleatorio==0:
-            print("El recurso a elegir es: Licuadora")
-            main.chef1.estado="trabajandoLicuadora1"
-            a=ps.PolloConPapas(self.numPo,self.recursos[0])
-            self.numPo+=1
-        elif aleatorio==1:
-            print("El recurso a elegir es: Cuchillos")
-            main.chef2.estado="trabajandoCuchillo1"
-            a=ps.Ensalada(self.numEn,self.recursos[1])
-            self.numEn+=1
-        else:
-            print("El recurso a elegir es: Horno")
-            main.chef3.estado="trabajandoHorno1"
-            a= ps.Malteada(self.numMa,self.recursos[2])
-            self.numMa+=1
-        return a
+	def contarColaLis(self):
+		tam = self.lis.tam
 
-class Chef(Sprite):
-    def __init__(self, cont_size):
-        Sprite.__init__(self)
-        self.cont_size = cont_size
-        self.estados = ["espera", "trabajandoCuchillo1", "trabajandoCuchillo2",
-                        "trabajandoHorno1", "trabajandoHorno2",
-                        "trabajandoLicuadora1", "trabajandoLicuadora2"]
-        self.estado = self.estados[0]
-        self.imagenes = [util.cargar_imagen('imagenes/chef.png'),
-                                        util.cargar_imagen('imagenes/chefCuchi.png'),
-                                        util.cargar_imagen('imagenes/chefCuchi2.png'),
-                                        util.cargar_imagen('imagenes/chefHorno.png'),
-                                        util.cargar_imagen('imagenes/chefHorno2.png'),
-                                        util.cargar_imagen('imagenes/chefLicu.png'),
-                                        util.cargar_imagen('imagenes/chefLicu2.png')]
-        self.image = self.imagenes[0]
-        self.rect = self.image.get_rect()
-        self.rect.move_ip(cont_size[0], cont_size[1]-250)
+		for i in range(tam):
+			n=self.lis.desencolar()
+			n.lis+=1
+			self.lis.encolar(n)
 
-    def update(self):
-        #animacion sprite
-        if self.estado == self.estados[0]:
-            self.image = self.imagenes[0]
-            
-        elif self.estado == self.estados[1]:
-            self.image = self.imagenes[1]
-            self.estado = self.estados[2]
-            
-        elif self.estado == self.estados[2]:
-            self.image = self.imagenes[2]
-            self.estado = self.estados[1]
-            
-        elif self.estado == self.estados[3]:
-            self.image = self.imagenes[3]
-            self.estado = self.estados[4]
-            
-        elif self.estado == self.estados[4]:
-            self.image = self.imagenes[4]
-            self.estado = self.estados[3]
-            
-        elif self.estado == self.estados[5]:
-            self.image = self.imagenes[5]
-            self.estado = self.estados[6]
-            
-        elif self.estado == self.estados[6]:
-            self.image = self.imagenes[6]
-            self.estado = self.estados[5]
-             
-def main():
-    pygame.init()
-    pygame.mixer.init()
-    
-    fondo = pygame.image.load("imagenes/cocina.png")
-    intro = pygame.image.load("imagenes/intro.png")
-    fondorect = fondo.get_rect()
-    introrect = intro.get_rect()
-    
-    pygame.display.set_caption( "Chef Race (Universidad Distrital)" )
-    pizarra = pygame.image.load("imagenes/pizarra.png")
-    sInicio = util.cargar_sonido('sonidos/inicio.wav')
-    sHorno = util.cargar_sonido('sonidos/horno.wav')
-    sCuchillo = util.cargar_sonido('sonidos/cuchillo.wav')
-    sLicuadora = util.cargar_sonido('sonidos/licuadora.wav')
-    sPrincipal = util.cargar_sonido('sonidos/principal.wav')
-    
-    main.chef1 = Chef((width-900,height))
-    main.chef2 = Chef((width-700,height))
-    main.chef3 = Chef((width-500,height))
-    pizarra1 = Pizarra((width-900,height))
-    pizarra2 = Pizarra((width-700,height))
-    pizarra3 = Pizarra((width-500,height))
-    receta1 = Receta((width,height))
-    receta2 = Receta((width+200,height))
-    receta3 = Receta((width+400,height))
-    
-    listaChefs = [main.chef1, main.chef2, main.chef3]
-    listaPizarras = [pizarra1, pizarra2, pizarra3]
-    listaRecetas = [receta1, receta2, receta3]
-    cuchillos = CuchillosIma(size)
-    licuadora = LicuadoraIma(size)
-    horno = HornoIma(size)
-    
-    reloj = pygame.time.Clock()
-    fuente1 = pygame.font.Font(None,70)
-    fuente2 = pygame.font.Font(None,25)
-    textoBienvenida = fuente1.render("Bienvenido a Chef Race UD", 1, (255,255,255))
-    textoAutor1 = fuente2.render("Marlon Arias", 1, (0,0,0))
-    textoAutor2 = fuente2.render("David Amado", 1, (0,0,0))
-    textoAutor3 = fuente2.render("Realizado por:", 1, (0,0,0))
 
-    sInicio.play()
-    aux = 3
-    
-    while aux > 0:  
-        screen.blit(intro, introrect)
-        screen.blit(textoAutor1,(width-170,height-680))
-        screen.blit(textoAutor2,(width-170,height-660))
-        screen.blit(textoAutor3,(width-170,height-700))
-        screen.blit(textoBienvenida,((width-880, (height/2)+30)))
-        pygame.display.update()
-        time.sleep(1)
-        aux=aux-1
-        
-    sPrincipal.play(1)
+	def contarColaBlo(self):
+		tam = self.blo.tam
+		for i in range(self.blo.tam):
+			n=self.blo.desencolar()
+			n.blo+=1
+			self.blo.encolar(n)
 
-    while 1:    
-        reloj.tick(30)
-        
-        for event in pygame.event.get():   
-            if event.type == pygame.QUIT: 
-                sys.exit()
-                
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                for x in range(810, 881):
-                    for y in range(137, 257):
-                        if event.button == 1 and event.pos == (x, y):
-                            main.chef1.estado = "trabajandoLicuadora1"
-                            sLicuadora.play()
-                            licuadora.rect.move_ip(-700, +70)
-                            eventop1.set()
-                        elif event.button == 2 and event.pos == (x, y):
-                            main.chef2.estado = "trabajandoLicuadora1"
-                            sLicuadora.play()
-                            licuadora.rect.move_ip(-505, +70)  
-                            eventop1.set()                          
-                        elif event.button == 3 and event.pos == (x, y):
-                            main.chef3.estado = "trabajandoLicuadora1"
-                            sLicuadora.play()
-                            licuadora.rect.move_ip(-305, +70)
-                            eventop1.set()
-                            
-                for x in range(770, 890):
-                    for y in range(282, 402):
-                        if event.button == 1 and event.pos == (x, y):
-                            main.chef1.estado = "trabajandoHorno1"
-                            sHorno.play()
-                            horno.rect.move_ip(-690, +45)
-                            eventop2.set()
-                        elif event.button == 2 and event.pos == (x, y):
-                            main.chef2.estado = "trabajandoHorno1"
-                            sHorno.play()
-                            horno.rect.move_ip(-490, +45)
-                            eventop2.set()
-                        elif event.button == 3 and event.pos == (x, y):
-                            main.chef3.estado = "trabajandoHorno1"
-                            sHorno.play()
-                            horno.rect.move_ip(-290, +45)
-                            eventop2.set()
+	def asignar(self,proceso):
+		proceso.quantum=proceso.asignarQ(self.ttotal)
+		proceso.estado=0
+		self.lis.encolar(proceso)
 
-                for x in range(780, 900):
-                    for y in range(27, 125):
-                        if event.button == 1 and event.pos == (x, y):
-                            main.chef1.estado = "trabajandoCuchillo1"
-                            sCuchillo.play()
-                            cuchillos.rect.move_ip(-700, +95)
-                            eventop3.set()
-                        elif event.button == 2 and event.pos == (x, y):
-                            main.chef2.estado = "trabajandoCuchillo1"
-                            sCuchillo.play()
-                            cuchillos.rect.move_ip(-500, +95)
-                            eventop3.set()
-                        elif event.button == 3 and event.pos == (x, y):
-                            main.chef3.estado = "trabajandoCuchillo1"
-                            sCuchillo.play()
-                            cuchillos.rect.move_ip(-300, +95)
-                            eventop3 .set()
-             
-        for elemento in listaChefs:
-            elemento.update()
-            
-        time.sleep(0.5)
-        screen.blit(fondo, fondorect)
-        
-        for elemento in listaChefs:
-            screen.blit(elemento.image, elemento.rect)
+class Cliente:
+	def __init__(self):
+		self.numPo=0
+		self.numMa=0
+		self.numEn=0
 
-        for elemento in listaPizarras:
-            screen.blit(elemento.image, elemento.rect)
+		self.recursos=[rs.Horno(size),rs.Cuchillos(size),rs.Licuadora(size)]
+		self.cola1=queue.Queue()
+		self.cola2=queue.Queue()
+		self.cola3=queue.Queue()
 
-        for elemento in listaRecetas:
-            screen.blit(elemento.image, elemento.rect)
+		self.colaProcesadores=queue.Queue()
+		self.procesador1=Chef((width-900,height),1,self.cola1)
+		self.procesador2=Chef((width-700,height),2,self.cola2)
+		self.procesador3=Chef((width-500,height),3,self.cola3)
 
-        screen.blit(cuchillos.image, cuchillos.rect)
-        screen.blit(licuadora.image, licuadora.rect)
-        screen.blit(horno.image, horno.rect)
-        
-        pygame.display.update()
-        
-eventop1 = threading.Event() 
-eventop2 = threading.Event()
-eventop3 = threading.Event()
-hiloAnimacion = threading.Thread(name='Animacion', target = main)
-cliente = cliente()
+		pygame.init()
+		pygame.mixer.init()
+		
+		self.tiempoCron = 0
+		self.contEnsaladas = 0
+		self.contMalteadas = 0
+		self.contPollos = 0
 
-if __name__ == '__main__':
-    hiloAnimacion.start()
-time.sleep(6)  
+		self.fondo = pygame.image.load("imagenes/cocina.png")
+		self.intro = pygame.image.load("imagenes/intro.png")
+		self.instrucciones = pygame.image.load("imagenes/instrucciones.png")
+		self.fondorect = self.fondo.get_rect()
+		self.introrect = self.intro.get_rect()
+		self.insrect = self.instrucciones.get_rect()
+
+		pygame.display.set_caption( "Chef Race (Universidad Distrital)" )
+		self.pizarra = pygame.image.load("imagenes/pizarra.png")
+		self.sInicio = util.cargar_sonido('sonidos/inicio.wav')
+		self.sHorno = util.cargar_sonido('sonidos/horno.wav')
+		self.sCuchillo = util.cargar_sonido('sonidos/cuchillo.wav')
+		self.sLicuadora = util.cargar_sonido('sonidos/licuadora.wav')
+		self.sPrincipal = util.cargar_sonido('sonidos/principal.wav')
+
+		self.pizarra1 = Pizarra((width-900,height))
+		self.pizarra2 = Pizarra((width-700,height))
+		self.pizarra3 = Pizarra((width-500,height))
+		self.receta1 = Receta((width,height))
+		self.receta2 = Receta((width+200,height))
+		self.receta3 = Receta((width+400,height))
+
+		self.comida1 = PolloConPapas(000,self.recursos[0],size)
+		self.comida2 = Ensalada(111,self.recursos[1],size)
+		self.comida3 = Malteada(222,self.recursos[2],size)
+
+		self.listaChefs = [self.procesador1, self.procesador2, self.procesador3]
+		self.listaPizarras = [self.pizarra1, self.pizarra2, self.pizarra3]
+		self.listaRecetas = [self.receta1, self.receta2, self.receta3]
+		self.listaComida = [self.comida1, self.comida2, self.comida3]
+		self.cuchillos = Cuchillos(size)
+		self.licuadora = Licuadora(size)
+		self.horno = Horno(size)
+
+		self.reloj = pygame.time.Clock()
+		self.fuente1 = pygame.font.Font(None,70)
+		self.fuente2 = pygame.font.Font(None,25)
+		self.textoBienvenida = self.fuente1.render("Bienvenido a Chef Race UD", 1, (255,255,255))
+		self.textoAutor1 = self.fuente2.render("Marlon Arias", 1, (0,0,0))
+		self.textoAutor2 = self.fuente2.render("David Amado", 1, (0,0,0))
+		self.textoAutor3 = self.fuente2.render("Realizado por:", 1, (0,0,0))
+
+	def iniciar(self):
+
+		self.sInicio.play()
+		aux = 3
+
+		while aux > 0:
+			screen.blit(self.intro, self.introrect)
+			screen.blit(self.textoAutor1,(width-170,height-680))
+			screen.blit(self.textoAutor2,(width-170,height-660))
+			screen.blit(self.textoAutor3,(width-170,height-700))
+			screen.blit(self.textoBienvenida,((width-880, (height/2)+30)))
+			pygame.display.update()
+			time.sleep(1)
+			aux=aux-1
+
+		self.sPrincipal.play(1)
+		
+		self.hiloAnimacion = threading.Thread(name='Animacion', target = self.pintar)
+		self.hiloAnimacion.setDaemon(True)
+		self.hiloEventos = threading.Thread(name='EventosMouse', target = self.capturarEventos)
+		self.hiloEventos.setDaemon(True)
+		hilos = [self.procesador1, self.procesador2, self.procesador3, self.hiloEventos, self.hiloAnimacion]
+		for h in hilos:
+			h.start()
+		
+		#self.crearProceso(5) #Creacion de procesos aleatorios para testear el algoritmo
+
+		self.cola1.join()
+		self.cola2.join()
+		self.cola3.join()
+		self.hiloAnimacion.join()
+		self.hiloEventos.join()
+
+	def capturarEventos(self):
+		while True:
+			for event in pygame.event.get():				
+				if event.type == pygame.QUIT:
+					sys.exit()
+				
+				if event.type == pygame.KEYDOWN:
+					#Chef 1:
+					if event.key == pygame.K_q:
+						proceso=Ensalada(self.numEn,self.recursos[1],size)
+						self.numEn+=1
+						estado="trabajandoCuchillo1"
+						self.cola1.put(proceso)
+						self.procesador1.estado=estado
+						self.pizarra1.arregloRecetas.append(proceso)
+						print("--PICO q")
+					if event.key == pygame.K_a:
+						proceso = Malteada(self.numMa,self.recursos[2],size)
+						self.numMa+=1
+						estado="trabajandoLicuadora1"
+						self.cola1.put(proceso)
+						self.procesador1.estado=estado
+						self.pizarra1.arregloRecetas.append(proceso)
+						print("--PICO a")
+					if event.key == pygame.K_z:
+						proceso=PolloConPapas(self.numPo,self.recursos[0],size)
+						self.numPo+=1
+						estado="trabajandoHorno1"
+						self.cola1.put(proceso)
+						self.procesador1.estado=estado
+						self.pizarra1.arregloRecetas.append(proceso)
+						print("--PICO z")
+					
+					#Chef 2:
+					if event.key == pygame.K_w:
+						proceso=Ensalada(self.numEn,self.recursos[1],size)
+						self.numEn+=1
+						estado="trabajandoCuchillo1"
+						self.cola2.put(proceso)
+						self.procesador2.estado=estado
+						self.pizarra2.arregloRecetas.append(proceso)
+						print("--PICO w")
+					if event.key == pygame.K_s:
+						proceso = Malteada(self.numMa,self.recursos[2],size)
+						self.numMa+=1
+						estado="trabajandoLicuadora1"
+						self.cola2.put(proceso)
+						self.procesador2.estado=estado
+						self.pizarra2.arregloRecetas.append(proceso)
+						print("--PICO s")
+					if event.key == pygame.K_x:
+						proceso=PolloConPapas(self.numPo,self.recursos[0],size)
+						self.numPo+=1
+						estado="trabajandoHorno1"
+						self.cola2.put(proceso)
+						self.procesador2.estado=estado
+						self.pizarra2.arregloRecetas.append(proceso)
+						print("--PICO x")
+						
+					#Chef 3:
+					if event.key == pygame.K_e:
+						proceso=Ensalada(self.numEn,self.recursos[1],size)
+						self.numEn+=1
+						estado="trabajandoCuchillo1"
+						self.cola3.put(proceso)
+						self.procesador3.estado=estado
+						self.pizarra3.arregloRecetas.append(proceso)
+						print("--PICO e")
+					if event.key == pygame.K_d:
+						proceso = Malteada(self.numMa,self.recursos[2],size)
+						self.numMa+=1
+						estado="trabajandoLicuadora1"
+						self.cola3.put(proceso)
+						self.procesador3.estado=estado
+						self.pizarra3.arregloRecetas.append(proceso)
+						print("--PICO d")
+					if event.key == pygame.K_c:
+						proceso=PolloConPapas(self.numPo,self.recursos[0],size)
+						self.numPo+=1
+						estado="trabajandoHorno1"
+						self.cola3.put(proceso)
+						self.procesador3.estado=estado
+						self.pizarra3.arregloRecetas.append(proceso)
+						print("--PICO c")						
+							
+	def pintar(self):
+		while self.procesador1.uso or self.procesador2.uso or self.procesador3.uso:
+			self.reloj.tick(30)
+
+			for elemento in self.listaChefs:
+				elemento.update()
+
+			time.sleep(0.5)
+			screen.blit(self.fondo, self.fondorect)			
+			screen.blit(self.instrucciones, (707,462))
+			
+			self.textoInstrucciones = self.fuente2.render("Instrucciones:", 1, (0,0,0))
+			screen.blit(self.textoInstrucciones,(707,442))
+			
+			self.contEnsaladas = self.numEn
+			self.contMalteadas = self.numMa
+			self.contPollos = self.numPo
+			
+			self.contEnsaladas = self.fuente2.render(str(self.contEnsaladas), 1, (0,0,0))
+			screen.blit(self.contEnsaladas,(685,60))
+			self.contMalteadas = self.fuente2.render(str(self.contMalteadas), 1, (0,0,0))
+			screen.blit(self.contMalteadas,(685,170))
+			self.contPollos = self.fuente2.render(str(self.contPollos), 1, (0,0,0))
+			screen.blit(self.contPollos,(685,300))
+			
+			self.textoCronometro = self.fuente2.render("Tiempo:" + str(self.tiempoCron), 1, (0,0,0))
+			screen.blit(self.textoCronometro,(5,5))
+			self.tiempoCron += 1
+
+			for elemento in self.listaChefs:
+				screen.blit(elemento.image, elemento.rect)
+
+			for elemento in self.listaPizarras:
+				screen.blit(elemento.image, elemento.rect)
+				#print("Longitud arregloRecetas: " + str(len(elemento.arregloRecetas)))
+				try:
+					for i in range(len(elemento.arregloRecetas)):
+						if elemento.arregloRecetas[i].estado==0:
+							screen.blit(elemento.arregloRecetas[i].iml, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
+						elif elemento.arregloRecetas[i].estado==1:
+							screen.blit(elemento.arregloRecetas[i].imb, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
+						elif elemento.arregloRecetas[i].estado==2:
+							screen.blit(elemento.arregloRecetas[i].ims, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
+						elif elemento.arregloRecetas[i].estado==3:
+							screen.blit(elemento.arregloRecetas[i].ime, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
+						elif elemento.arregloRecetas[i].estado==4:
+							elemento.arregloRecetas.remove(elemento.arregloRecetas[i])
+						else:
+							pass
+				except IndexError:
+					print("Oops! El arregloRecetas se ha desbordado")
+					print("No te preocupes, puede continuar...\n")
+
+			for elemento in self.listaRecetas:
+				screen.blit(elemento.image, elemento.rect)
+
+			for elemento in self.listaComida:
+				screen.blit(elemento.iml, elemento.rect)
+
+			screen.blit(self.cuchillos.image, self.cuchillos.rect)
+			screen.blit(self.licuadora.image, self.licuadora.rect)
+			screen.blit(self.horno.image, self.horno.rect)
+
+			pygame.display.update()
+
+	def crearProceso(self,nProcesos):
+		for i in range(nProcesos):
+			self.asignarPedidoAleatorio()
+
+	def asignarPedidoAleatorio(self):
+		aleatorio1=np.random.randint(3)
+		aleatorio2=np.random.randint(3)
+		if aleatorio1==0:
+			proceso=PolloConPapas(self.numPo,self.recursos[0],size)
+			self.numPo+=1
+			estado="trabajandoHorno1"
+
+		elif aleatorio1==1:
+			proceso=Ensalada(self.numEn,self.recursos[1],size)
+			self.numEn+=1
+			estado="trabajandoCuchillo1"
+		else:
+			proceso= Malteada(self.numMa,self.recursos[2],size)
+			self.numMa+=1
+			estado="trabajandoLicuadora1"
+
+		if aleatorio2==0:
+			self.cola1.put(proceso)
+			self.procesador1.estado=estado
+			self.pizarra1.arregloRecetas.append(proceso)
+		elif aleatorio2==1:
+			self.cola2.put(proceso)
+			self.procesador2.estado=estado
+			self.pizarra2.arregloRecetas.append(proceso)
+		elif aleatorio2==2:
+			self.cola3.put(proceso)
+			self.procesador3.estado=estado
+			self.pizarra3.arregloRecetas.append(proceso)
+		else:
+			pass
+
+class Chef(Sprite, Procesador):
+	def __init__(self, cont_size,idProcesador,*args):
+		Sprite.__init__(self)
+		Procesador.__init__(self,idProcesador,*args)
+		self.cont_size = cont_size
+		self.estados = ["espera", "trabajandoCuchillo1", "trabajandoCuchillo2",
+						"trabajandoHorno1", "trabajandoHorno2",
+						"trabajandoLicuadora1", "trabajandoLicuadora2"]
+		self.estado = self.estados[0]
+		self.imagenes = [util.cargar_imagen('imagenes/chef.png'),
+										util.cargar_imagen('imagenes/chefCuchi.png'),
+										util.cargar_imagen('imagenes/chefCuchi2.png'),
+										util.cargar_imagen('imagenes/chefHorno.png'),
+										util.cargar_imagen('imagenes/chefHorno2.png'),
+										util.cargar_imagen('imagenes/chefLicu.png'),
+										util.cargar_imagen('imagenes/chefLicu2.png')]
+		self.image = self.imagenes[0]
+		self.rect = self.image.get_rect()
+		self.rect.move_ip(cont_size[0], cont_size[1]-250)
+
+	def update(self):
+		#animacion sprite
+		if self.proceso==None:
+			self.image = self.imagenes[0]
+			print("el procesador",self,"no tiene proceso")
+		else:
+			if self.proceso.recurso.nombre=="Cuchillos":
+				if self.estado == self.estados[1]:
+					self.image = self.imagenes[1]
+					self.estado = self.estados[2]
+				else:
+					self.image = self.imagenes[2]
+					self.estado = self.estados[1]
+			elif self.proceso.recurso.nombre=="Horno":
+				if self.estado == self.estados[3]:
+					self.image = self.imagenes[3]
+					self.estado = self.estados[4]
+				else:
+					self.image = self.imagenes[4]
+					self.estado = self.estados[3]
+			else:
+				if self.estado == self.estados[5]:
+					self.image = self.imagenes[5]
+					self.estado = self.estados[6]
+				else:
+					self.image = self.imagenes[6]
+					self.estado = self.estados[5]
+
+cliente = Cliente()
 cliente.iniciar()
