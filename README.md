@@ -1,13 +1,15 @@
 # Chef Race UD (Universidad Distrital)
 ## Videojuego para la implementación del algoritmo de planificación RoundRobin
 ## Videojuego para la implementación del algoritmo de planificación SRTF
+## Videojuego para la implementación del algoritmo de planificación de Colas Multiples Retroalimentadas
 
 **Lista de objetivos:**
 
 1. Desarrollo del juego mediante python3 y la librería pygame
 2. Estudio y desarrollo de un algoritmo de planificación (RoundRobin)
 3. Estudio y desarrollo de un algoritmo de planificación (SRTF)
-4. Implementación de ambos para el aprendizaje lúdico del tema (Sistemas Operativos)
+4. Estudio y desarrollo de un algoritmo de planificación (Colas Multiples Retroalimentadas)
+5. Implementación de ambos para el aprendizaje lúdico del tema (Sistemas Operativos)
 
 **Integrantes:**
 
