@@ -22,8 +22,8 @@ class Cola:
         self.cola=nuevo
         self.tam+=1
         return True
-        
-    
+
+
     def desencolar(self,n=0):
         x=None
         if self.cabeza==None:
@@ -32,13 +32,19 @@ class Cola:
         elif n==0:
             x=self.cabeza
             self.cabeza=x.sig
-            
+
         else:
             for i in range(n):
                 x=x.sig
 
         self.tam-=1
         return x.info
-    
+    def ordenar(self):
+        a=[]
+        for i in range(self.tam):
+            a.append(self.desencolar())
+        a.sort(key=lambda procesos: procesos.t)
+        for i in a:
+            self.encolar(i)
     def es_vacia(self):
         return self.cabeza==None
