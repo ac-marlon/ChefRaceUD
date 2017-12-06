@@ -60,8 +60,10 @@ class Procesador(threading.Thread):
 				nuevo=q.get()
 				self.asignar(nuevo)
 				self.ttotal+=nuevo.t
+				print(self.ttotal)
 
 			if not self.lisMax.es_vacia() and self.proceso==None:
+				print("entro a max1")
 				posible=self.lisMax.desencolar()
 				if posible.recurso.libre:
 					self.ocupado=True
@@ -74,6 +76,7 @@ class Procesador(threading.Thread):
 					posible.estado=1
 
 			elif not self.lisMax.es_vacia() and not self.proceso==None and self.proceso.prioridad>0:
+				print("entro a max2")
 				posible=self.lisMax.desencolar()
 				if posible.recurso.libre:
 					self.proceso.suspender()
@@ -88,7 +91,7 @@ class Procesador(threading.Thread):
 				else:
 					self.lisMax.encolar(posible)
 
-			elif not self.lisMed.es_vacia() and self.proceso==None:
+			elif not self.lisMed.es_vacia() and self.proceso==None and self.susMax.es_vacia() and self.bloMax.es_vacia():
 				posible=self.lisMed.desencolar()
 				print(posible)
 				if posible.recurso.libre:
@@ -100,9 +103,16 @@ class Procesador(threading.Thread):
 				else:
 					posible.bloquear()
 					self.bloMed.encolar(posible)
-			elif not self.lisMed.es_vacia() and not self.proceso==None:
+			elif not self.lisMed.es_vacia() and not self.proceso==None and self.susMax.es_vacia() and self.bloMax.es_vacia() and self.lisMax.es_vacia() and not self.proceso.prioridad==0:
 				posible=self.lisMed.desencolar()
-				if self.proceso.t>posible.t and posible.recurso.libre and self.proceso.prioridad<=posible.prioridad:
+				print("entro.... posible",posible,"prioridad",posible.prioridad,"actual",self.proceso,"prioridad",self.proceso.prioridad)
+				if self.proceso.t>posible.t and posible.recurso.libre and self.proceso.prioridad==posible.prioridad:
+					print("entro a asignar de la lista de media prioridad cuando habia algo de menor tiempo")
+					self.proceso.suspender()
+					self.susMin.encolar(self.proceso)
+					self.proceso=posible
+					self.proceso.recurso.utilizar()
+				elif posible.recurso.libre and self.proceso.prioridad>posible.prioridad:
 					print("entro a asignar de la lista de media prioridad cuando habia algo de menor prioridad")
 					self.proceso.suspender()
 					self.susMin.encolar(self.proceso)
@@ -112,7 +122,7 @@ class Procesador(threading.Thread):
 					self.lisMed.encolar(posible)
 
 
-			elif not self.lisMin.es_vacia() and self.proceso==None:
+			elif not self.lisMin.es_vacia() and self.proceso==None and self.susMed.es_vacia() and self.bloMed.es_vacia() and self.susMax.es_vacia() and self.bloMax.es_vacia():
 				posible=self.lisMin.desencolar()
 				if posible.recurso.libre:
 					print("entro a asignar de la lista de minima prioridad")
@@ -131,12 +141,11 @@ class Procesador(threading.Thread):
 
 			if not self.proceso==None:
 				self.proceso.procesar()
-				self.ttotal=-1
+				self.ttotal-=1
+				print(self.proceso,"quantum",self.proceso.quantum)
 				if self.proceso.prioridad==0 and self.proceso.t>0 and self.proceso.quantum==0:
-					self.proceso.tr=5
-					self.proceso.recurso.libre=True
 					self.susMax.encolar(self.proceso)
-					self.proceso.estado=2
+					self.proceso.suspender()
 					self.proceso=None
 				elif self.proceso.t==0:
 					self.proceso.recurso.liberar()
@@ -236,6 +245,7 @@ class Procesador(threading.Thread):
 			if n.te==0:
 				print("cambiando de prioridad a prioridad media    ",n)
 				n.prioridad=1
+				n.asignarTiempoEnvejecimiento(self.ttotal)
 				self.lisMed.encolar(n)
 			else:
 				n.te-=1
@@ -266,10 +276,10 @@ class Procesador(threading.Thread):
 			proceso.quantum=proceso.asignarQ(self.ttotal)
 			self.lisMax.encolar(proceso)
 		elif proceso.prioridad==1:
-			proceso.asignarTiempoEnvejecimiento()
+			proceso.asignarTiempoEnvejecimiento(self.ttotal)
 			self.lisMed.encolar(proceso)
 		else:
-			proceso.asignarTiempoEnvejecimiento()
+			proceso.asignarTiempoEnvejecimiento(self.ttotal)
 			self.lisMin.encolar(proceso)
 
 class Cliente:
@@ -323,6 +333,11 @@ class Cliente:
 		self.comida1 = PolloConPapas(000,0,self.recursos[0],(width-300,height))
 		self.comida2 = Ensalada(111,0,self.recursos[1],(width-300,height))
 		self.comida3 = Malteada(222,0,self.recursos[2],(width-300,height))
+		
+		self.bandera= pygame.image.load("imagenes/bandera.png")
+		self.banderarect=self.bandera.get_rect()
+		self.bandera2= pygame.image.load("imagenes/bandera2.png")
+		self.bandera2rect=self.bandera2.get_rect()
 
 		self.listaChefs = [self.procesador1, self.procesador2, self.procesador3]
 		self.listaPizarras = [self.pizarra1, self.pizarra2, self.pizarra3]
@@ -380,7 +395,13 @@ class Cliente:
 					sys.exit()
 
 				if event.type == pygame.KEYDOWN:
-					r=np.random.randint(3)
+					mod_bitmask = pygame.key.get_mods()
+					if mod_bitmask & pygame.KMOD_CTRL:
+						r=0
+					elif mod_bitmask & pygame.KMOD_SHIFT:
+						r=1
+					else:
+						r=2
 					#Chef 1:
 					if event.key == pygame.K_q:
 						proceso=Ensalada(self.numEn,r,self.recursos[1],size)
@@ -495,10 +516,10 @@ class Cliente:
 			self.textoCronometro = self.fuente2.render("Tiempo:" + str(self.tiempoCron), 1, (0,0,0))
 			screen.blit(self.textoCronometro,(5,5))
 			self.tiempoCron += 1
-			
+
 			self.textoTotal = self.fuente2.render("Total:", 1, (0,0,0))
 			screen.blit(self.textoTotal,(640,15))
-			
+
 			self.textoPedido = self.fuente2.render("Pedido:", 1, (180,95,4))
 			screen.blit(self.textoPedido,(5,120))
 			screen.blit(self.textoPedido,(200,120))
@@ -510,22 +531,19 @@ class Cliente:
 			screen.blit(self.comensal2.image2, self.comensal2.rect2)
 			self.comensal3 = Comensal(size)
 			screen.blit(self.comensal3.image3, self.comensal3.rect3)
-			
+
 			for elemento in self.listaPizarras:
 				for i in range(len(elemento.arregloRecetas)):
 					if len(elemento.arregloRecetas)>i:
 						if elemento.arregloRecetas[i].prioridad==0:
 							self.comensal1.arregloPrioridad.append(elemento.arregloRecetas[i])
-							print("!!!Asignado ALTA")
 						elif elemento.arregloRecetas[i].prioridad==1:
 							self.comensal2.arregloPrioridad.append(elemento.arregloRecetas[i])
-							print("!!!Asignado MEDIA")
 						elif elemento.arregloRecetas[i].prioridad==2:
 							self.comensal3.arregloPrioridad.append(elemento.arregloRecetas[i])
-							print("!!!Asignado BAJA")
 						else:
 							pass
-							
+
 			for i in self.comensal1.arregloPrioridad:
 				if (self.comensal1.arregloPrioridad.index(i) < 9):
 					screen.blit(i.mini, (self.comensal1.rect1[0] - 200 + (self.comensal1.arregloPrioridad.index(i)*30), 48))
@@ -535,7 +553,7 @@ class Cliente:
 					screen.blit(i.mini, (self.comensal1.rect1[0] - 200 + (self.comensal1.arregloPrioridad.index(i)*30 - 270), 78))
 					self.numPedido = self.fuente2.render(str(i.idProceso), 1, (8,41,138))
 					screen.blit(self.numPedido,(self.comensal1.rect1[0] - 190 + (self.comensal1.arregloPrioridad.index(i)*30 - 270), 108))
-			
+
 			for i in self.comensal2.arregloPrioridad:
 				if (self.comensal2.arregloPrioridad.index(i) < 9):
 					screen.blit(i.mini, (self.comensal2.rect2[0] - 200 + (self.comensal2.arregloPrioridad.index(i)*30), 298))
@@ -545,7 +563,7 @@ class Cliente:
 					screen.blit(i.mini, (self.comensal2.rect2[0] - 200 + (self.comensal2.arregloPrioridad.index(i)*30 - 270), 328))
 					self.numPedido = self.fuente2.render(str(i.idProceso), 1, (8,41,138))
 					screen.blit(self.numPedido,(self.comensal2.rect2[0] - 190 + (self.comensal2.arregloPrioridad.index(i)*30 - 270), 358))
-			
+
 			for i in self.comensal3.arregloPrioridad:
 				if (self.comensal3.arregloPrioridad.index(i) < 9):
 					screen.blit(i.mini, (self.comensal3.rect3[0] - 200 + (self.comensal3.arregloPrioridad.index(i)*30), 528))
@@ -565,20 +583,23 @@ class Cliente:
 					if len(elemento.arregloRecetas)>i:
 						if elemento.arregloRecetas[i].estado==0:
 							screen.blit(elemento.arregloRecetas[i].iml, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
-							self.numPedido = self.fuente2.render("#." + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
+							self.numPedido = self.fuente2.render("# " + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
 							screen.blit(self.numPedido,(elemento.rect[0]-30,elemento.rect[1]+i*60+35))
 						elif elemento.arregloRecetas[i].estado==1:
 							screen.blit(elemento.arregloRecetas[i].imb, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
-							self.numPedido = self.fuente2.render("#." + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
+							self.numPedido = self.fuente2.render("# " + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
 							screen.blit(self.numPedido,(elemento.rect[0]-30,elemento.rect[1]+i*60+35))
+							screen.blit(self.bandera,(elemento.rect[0]+10,elemento.rect[1]+i*60+25))
 						elif elemento.arregloRecetas[i].estado==2:
 							screen.blit(elemento.arregloRecetas[i].ims, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
-							self.numPedido = self.fuente2.render("#." + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
+							self.numPedido = self.fuente2.render("# " + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
 							screen.blit(self.numPedido,(elemento.rect[0]-30,elemento.rect[1]+i*60+35))
+							screen.blit(self.bandera,(elemento.rect[0]+10,elemento.rect[1]+i*60+25))
 						elif elemento.arregloRecetas[i].estado==3:
 							screen.blit(elemento.arregloRecetas[i].ime, (elemento.rect[0]+30,elemento.rect[1]+i*60+10))
-							self.numPedido = self.fuente2.render("#." + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
+							self.numPedido = self.fuente2.render("# " + str(elemento.arregloRecetas[i].idProceso), 1, (8,41,138))
 							screen.blit(self.numPedido,(elemento.rect[0]-30,elemento.rect[1]+i*60+35))
+							screen.blit(self.bandera2,(elemento.rect[0]+90,elemento.rect[1]+i*60+18))
 						elif elemento.arregloRecetas[i].estado==4:
 							elemento.arregloRecetas.remove(elemento.arregloRecetas[i])
 						else:
@@ -656,7 +677,6 @@ class Chef(Sprite, Procesador):
 		#animacion sprite
 		if self.proceso==None:
 			self.image = self.imagenes[0]
-			print("el procesador",self,"no tiene proceso")
 		else:
 			if self.proceso.recurso.nombre=="Cuchillos":
 				if self.estado == self.estados[1]:
