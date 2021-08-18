@@ -11,11 +11,6 @@
 4. Estudio y desarrollo de un algoritmo de planificación (Colas Multiples Retroalimentadas)
 5. Implementación de ambos para el aprendizaje lúdico del tema (Sistemas Operativos)
 
-**Integrantes:**
-
-- Marlon Arias Cárdenas (20151020111)
-- David Amado Romero (20121020064)
-
 __Controles (temporal):__
 >A cada chef se le pueden asignar una o mas recetas de cualquier tipo.
 
